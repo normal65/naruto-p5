@@ -137,6 +137,51 @@ if __name__ == '__main__':
     print("=" * 50)
     app.run(debug=True, port=5000)
 else:
-    # gunicorn启动时也创建表
+    # gunicorn启动时也创建表，并自动导入初始数据
     with app.app_context():
         db.create_all()
+        # 如果数据库为空，自动从JSON导入数据
+        if Character.query.count() == 0:
+            # 导入角色
+            chars_file = os.path.join(BASE_DIR, 'database', 'characters.json')
+            if os.path.exists(chars_file):
+                with open(chars_file, 'r', encoding='utf-8') as f:
+                    characters = json.load(f)
+                for char_data in characters:
+                    character = Character(
+                        id=char_data['id'],
+                        name=char_data['name'],
+                        name_en=char_data.get('nameEn', ''),
+                        role=char_data.get('role', ''),
+                        image=char_data.get('image', ''),
+                        summary=char_data.get('summary', ''),
+                        tags=char_data.get('tags', []),
+                        quotes=char_data.get('quotes', '')
+                    )
+                    db.session.add(character)
+                db.session.commit()
+                print(f"自动导入 {len(characters)} 个角色")
+
+            # 导入事件
+            events_file = os.path.join(BASE_DIR, 'database', 'events.json')
+            if os.path.exists(events_file):
+                with open(events_file, 'r', encoding='utf-8') as f:
+                    events = json.load(f)
+                for event_data in events:
+                    event = Event(
+                        id=event_data['id'],
+                        title=event_data['title'],
+                        period=event_data.get('period', ''),
+                        summary=event_data.get('summary', '')
+                    )
+                    db.session.add(event)
+                    for child_data in event_data.get('children', []):
+                        child = EventChild(
+                            id=child_data['id'],
+                            event_id=event_data['id'],
+                            title=child_data['title'],
+                            detail=child_data.get('detail', '')
+                        )
+                        db.session.add(child)
+                db.session.commit()
+                print(f"自动导入 {len(events)} 个事件")
